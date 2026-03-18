@@ -13,7 +13,7 @@ const Admin = () => {
   const loadUsers = async () => {
     try {
       const res = await axios.get(
-        "http://127.0.0.1:8000/api/admin/"
+        `${import.meta.env.VITE_API_URL}/api/admin/`
       );
       setUsers(res.data.users || []);
     } catch (err) {
@@ -25,7 +25,7 @@ const Admin = () => {
   const approveUser = async (username) => {
     try {
       await axios.post(
-        "http://127.0.0.1:8000/api/approve/",
+        `${import.meta.env.VITE_API_URL}/api/approve/`,
         { username }
       );
       alert("User approved successfully");
@@ -39,7 +39,7 @@ const Admin = () => {
   const loadItems = async () => {
     try {
       const res = await axios.get(
-        "http://127.0.0.1:8000/api/admin/items/"
+        `${import.meta.env.VITE_API_URL}/api/admin/items/`
       );
       setItems(res.data.items || []);
     } catch (err) {
@@ -53,7 +53,7 @@ const Admin = () => {
 
     try {
       await axios.post(
-        "http://127.0.0.1:8000/api/admin/remove-item/",
+        `${import.meta.env.VITE_API_URL}/api/admin/remove-item/`,
         { item_id: id }
       );
       alert("Item removed");

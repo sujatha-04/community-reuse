@@ -17,7 +17,7 @@ const Parent = () => {
   const loadParent = async () => {
     const username = localStorage.getItem("username");
     const res = await axios.get(
-      `http://127.0.0.1:8000/api/parentdetails/?username=${username}`
+      `${import.meta.env.VITE_API_URL}/api/parentdetails/?username=${username}`
     );
     setParent(res.data.parent);
   };
@@ -25,21 +25,21 @@ const Parent = () => {
   const loadChildren = async () => {
   const username = localStorage.getItem("username");
   const res = await axios.get(
-    `http://127.0.0.1:8000/api/parent/children/?username=${username}`
+    `${import.meta.env.VITE_API_URL}/api/parent/children/?username=${username}`
   );
   setChildren(res.data.children || []);
 };
  
 const loadAttendance = async (student_id) => {
   const res = await axios.get(
-    `http://127.0.0.1:8000/api/parent/child-attendance/?student_id=${student_id}`
+    `${import.meta.env.VITE_API_URL}/api/parent/child-attendance/?student_id=${student_id}`
   );
   setAttendance(res.data.attendance || []);
 };
 
 const loadGrades = async (student_id) => {
   const res = await axios.get(
-    `http://127.0.0.1:8000/api/parent/child-grades/?student_id=${student_id}`
+    `${import.meta.env.VITE_API_URL}/api/parent/child-grades/?student_id=${student_id}`
   );
   setGrades(res.data.grades || []);
 };

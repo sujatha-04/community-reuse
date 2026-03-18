@@ -24,7 +24,7 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const res = await axios.post("http://127.0.0.1:8000/api/register/", form);
+    const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/register/`, form);
 
     if (res.data.error) {
       setMsgType("error");

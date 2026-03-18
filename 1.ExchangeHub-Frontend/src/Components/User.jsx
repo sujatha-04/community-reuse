@@ -22,7 +22,7 @@ const User = () => {
     if (!username) return;
 
     const res = await axios.get(
-      `http://127.0.0.1:8000/api/userdetails/?username=${username}`
+      `${import.meta.env.VITE_API_URL}/api/userdetails/?username=${username}`
     );
     setUser(res.data.user);
   };
@@ -32,7 +32,7 @@ const User = () => {
   if (!username) return;
 
   const res = await axios.get(
-    `http://127.0.0.1:8000/api/items/?username=${username}`
+    `${import.meta.env.VITE_API_URL}/api/items/?username=${username}`
   );
 
   setItems(res.data.items || []);
@@ -42,7 +42,7 @@ const User = () => {
     if (!username) return;
 
     const res = await axios.get(
-      `http://127.0.0.1:8000/api/user/my-items/?username=${username}`
+      `${import.meta.env.VITE_API_URL}/api/user/my-items/?username=${username}`
     );
     setMyItems(res.data.items || []);
   };
@@ -50,7 +50,7 @@ const User = () => {
   /* ================= LOAD REQUESTS (OWNER SIDE) ================= */
   const loadRequests = async () => {
     const res = await axios.get(
-      `http://127.0.0.1:8000/api/item-requests/?username=${username}`
+      `${import.meta.env.VITE_API_URL}/api/item-requests/?username=${username}`
     );
     setRequests(res.data.requests || []);
   };
@@ -62,7 +62,7 @@ const User = () => {
       return;
     }
 
-    await axios.post("http://127.0.0.1:8000/api/add-item/", {
+    await axios.post(`${import.meta.env.VITE_API_URL}/api/add-item/`, {
       username,
       item_name: itemName,
       description,
@@ -77,7 +77,7 @@ const User = () => {
 
   /* ================= REQUEST ITEM ================= */
   const requestItem = async (itemId) => {
-    await axios.post("http://127.0.0.1:8000/api/request-item/", {
+    await axios.post(`${import.meta.env.VITE_API_URL}/api/request-item/`, {
       username,
       item_id: itemId,
     });
@@ -87,7 +87,7 @@ const User = () => {
 
   /* ================= APPROVE / REJECT REQUEST ================= */
   const updateRequest = async (id, status) => {
-    await axios.post("http://127.0.0.1:8000/api/update-request/", {
+    await axios.post(`${import.meta.env.VITE_API_URL}/api/update-request/`, {
       request_id: id,
       status,
     });
@@ -99,7 +99,7 @@ const User = () => {
   if (!username) return;
 
   const res = await axios.get(
-    `http://127.0.0.1:8000/api/user/requested-items/?username=${username}`
+    `${import.meta.env.VITE_API_URL}/api/user/requested-items/?username=${username}`
   );
 
   setRequestedItems(res.data.items || []);
