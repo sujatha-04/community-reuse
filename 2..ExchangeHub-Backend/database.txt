@@ -1,0 +1,31 @@
+create database webdb7;
+use webdb7;
+CREATE TABLE users1 (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(100) NOT NULL,
+    mobile VARCHAR(20) NOT NULL,
+    address VARCHAR(255) NOT NULL,
+    role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
+    approved TINYINT(1) DEFAULT 0
+);
+CREATE TABLE items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    item_name VARCHAR(100),
+    description VARCHAR(255),
+    status ENUM('active','removed') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE item_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    item_id INT,
+    requester_id INT,
+    owner_id INT,
+    status ENUM('pending','approved','rejected') DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+Select * from users1;
+Select * from items;
+Select * from item_requests;
