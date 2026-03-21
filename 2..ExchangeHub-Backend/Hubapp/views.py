@@ -1,33 +1,8 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-import pymysql
-
-# ================= DATABASE CONNECTION =================
-def get_db_connection():
-    return pymysql.connect(
-        host="127.0.0.1",
-        user="root",
-        password="root",
-        database="webdb7",
-        cursorclass=pymysql.cursors.DictCursor
-    )
-
-
-# ================= ENSURE SINGLE ADMIN =================
-def ensure_single_admin():
-    con = get_db_connection()
-    with con:
-        cur = con.cursor()
-        cur.execute("SELECT * FROM users1 WHERE role='admin'")
-        if not cur.fetchone():
-            cur.execute("""
-                INSERT INTO users1
-                (username,email,password,mobile,address,role,approved)
-                VALUES ('admin','admin@gmail.com','admin',
-                        '1234567890','Hyderabad','admin',1)
-            """)
-            con.commit()
-
+from django.contrib.auth.models import User
+from django.contrib.auth import authenticate
+from .models import UserProfile, Item, ExchangeRequest
 
 # ================= REGISTER =================
 @api_view(["POST"])
@@ -41,336 +16,311 @@ def register_api(request):
     if not all([username, email, password, mobile, address]):
         return Response({"error": "All fields are required"})
 
-    con = get_db_connection()
-    with con:
-        cur = con.cursor()
+    # -------- CHECK IF USERNAME EXISTS --------
+    if User.objects.filter(username=username).exists():
+        return Response({"error": "Username already exists"})
 
-        # -------- UNIQUE CHECKS --------
-        cur.execute("SELECT id FROM users1 WHERE username=%s", (username,))
-        if cur.fetchone():
-            return Response({"error": "Username already exists"})
+    if User.objects.filter(email=email).exists():
+        return Response({"error": "Email already exists"})
 
-        cur.execute("SELECT id FROM users1 WHERE email=%s", (email,))
-        if cur.fetchone():
-            return Response({"error": "Email already exists"})
-
-        cur.execute("SELECT id FROM users1 WHERE mobile=%s", (mobile,))
-        if cur.fetchone():
-            return Response({"error": "Mobile number already exists"})
-
-        # -------- INSERT USER --------
-        cur.execute("""
-            INSERT INTO users1
-            (username,email,password,mobile,address,role,approved)
-            VALUES (%s,%s,%s,%s,%s,'user',0)
-        """, (username, email, password, mobile, address))
-        con.commit()
-
-    return Response({"success": "Registration successful. Awaiting Admin approval"})
+    # -------- CREATE USER --------
+    try:
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password
+        )
+        # Create user profile with mobile and address
+        UserProfile.objects.create(
+            user=user, 
+            is_approved=False, 
+            role='user',
+            mobile=mobile,
+            address=address
+        )
+        return Response({"success": "Registration successful. Awaiting admin approval"})
+    except Exception as e:
+        return Response({"error": str(e)})
 
 
 # ================= LOGIN =================
 @api_view(["POST"])
 def login_api(request):
-    ensure_single_admin()
-
     username = request.data.get("username")
     password = request.data.get("password")
 
-    con = get_db_connection()
-    with con:
-        cur = con.cursor()
-        cur.execute(
-            "SELECT * FROM users1 WHERE username=%s AND password=%s",
-            (username, password)
-        )
-        user = cur.fetchone()
+    print(f"Login attempt: {username}")
 
-    if not user:
-        return Response({"error": "Invalid credentials"})
+    # -------- AUTHENTICATE USER --------
+    user = authenticate(username=username, password=password)
 
-    if user["role"] != "admin" and user["approved"] == 0:
-        return Response({"error": "Account not approved by admin"})
+    if user is None:
+        print(f"Authentication failed for {username}")
+        return Response({"error": "Invalid username or password"})
+
+    print(f"Authentication successful for {username}, is_staff: {user.is_staff}")
+
+    # -------- CHECK APPROVAL STATUS --------
+    try:
+        profile = UserProfile.objects.get(user=user)
+        print(f"Profile found: is_approved={profile.is_approved}, role={profile.role}")
+        
+        if not profile.is_approved and not user.is_staff:
+            print(f"User {username} not approved and not staff")
+            return Response({"error": "Account not approved by admin yet"})
+        
+        role = "admin" if user.is_staff else "user"
+        print(f"Returning role: {role}")
+        
+    except UserProfile.DoesNotExist:
+        print(f"No profile for {username}, creating one")
+        # Create profile if doesn't exist (for admin user)
+        if user.is_staff:
+            UserProfile.objects.create(user=user, is_approved=True, role='admin')
+            role = "admin"
+        else:
+            return Response({"error": "Invalid user profile"})
 
     return Response({
         "success": "Login successful",
-        "role": user["role"],
-        "username": user["username"]
+        "role": role,
+        "username": user.username,
+        "email": user.email
     })
+
+
+# ================= ADD ITEM =================
+@api_view(["POST"])
+def add_item_api(request):
+    try:
+        username = request.data.get("username")
+        # Support both 'name' and 'item_name' field names
+        name = request.data.get("name") or request.data.get("item_name")
+        description = request.data.get("description")
+
+        if not all([username, name, description]):
+            return Response({"error": "All fields are required"})
+
+        user = User.objects.get(username=username)
+        item = Item.objects.create(owner=user, name=name, description=description)
+        
+        return Response({"success": "Item added successfully", "item_id": item.id})
+    except User.DoesNotExist:
+        return Response({"error": "User not found"})
+    except Exception as e:
+        return Response({"error": str(e)})
+
+
+# ================= VIEW ITEMS =================
+@api_view(["GET"])
+def view_items_api(request):
+    username = request.query_params.get("username")
+    try:
+        # Show only items from other users
+        if username:
+            items = Item.objects.exclude(owner__username=username)
+        else:
+            items = Item.objects.all()
+        items_data = []
+        for item in items:
+            items_data.append({
+                "id": item.id,
+                "item_name": item.name,
+                "name": item.name,
+                "description": item.description,
+                "owner": item.owner.username,
+                "username": item.owner.username,
+                "created_at": item.created_at
+            })
+        return Response({"items": items_data})
+    except Exception as e:
+        return Response({"error": str(e)})
 
 
 # ================= USER DETAILS =================
 @api_view(["GET"])
 def user_details_api(request):
-    username = request.GET.get("username")
-
-    con = get_db_connection()
-    with con:
-        cur = con.cursor()
-        cur.execute("SELECT * FROM users1 WHERE username=%s", (username,))
-        user = cur.fetchone()
-
-    if not user:
-        return Response({"error": "User not found"})
-
-    return Response({"user": user})
-
-
-# ================= ADMIN – VIEW PENDING USERS =================
-@api_view(["GET"])
-def admin_users_api(request):
-    con = get_db_connection()
-    with con:
-        cur = con.cursor(pymysql.cursors.DictCursor)
-        cur.execute("""
-            SELECT username, email, mobile, approved
-            FROM users1
-            WHERE role='user'
-        """)
-        users = cur.fetchall()
-
-    return Response({"users": users})
+    username = request.query_params.get("username")
+    try:
+        user = User.objects.get(username=username)
+        profile = UserProfile.objects.get(user=user)
+        return Response({
+            "user": {
+                "username": user.username,
+                "email": user.email,
+                "mobile": profile.mobile or "",
+                "address": profile.address or "",
+                "is_approved": profile.is_approved,
+                "role": profile.role
+            }
+        })
+    except Exception as e:
+        return Response({"error": str(e)})
 
 
-# ================= ADMIN – APPROVE USER =================
+# ================= ADMIN: APPROVE USER =================
 @api_view(["POST"])
 def approve_user_api(request):
     username = request.data.get("username")
-
-    con = get_db_connection()
-    with con:
-        cur = con.cursor()
-        cur.execute(
-            "UPDATE users1 SET approved=1 WHERE username=%s",
-            (username,)
-        )
-        con.commit()
-
-    return Response({"success": "User approved"})
+    try:
+        user = User.objects.get(username=username)
+        profile = UserProfile.objects.get(user=user)
+        profile.is_approved = True
+        profile.save()
+        return Response({"success": f"User {username} approved"})
+    except Exception as e:
+        return Response({"error": str(e)})
 
 
-# ================= USER – ADD ITEM =================
-@api_view(["POST"])
-def add_item_api(request):
-    username = request.data.get("username")
-    item_name = request.data.get("item_name")
-    description = request.data.get("description")
-
-    if not all([username, item_name, description]):
-        return Response({"error": "All fields are required"})
-
-    con = get_db_connection()
-    with con:
-        cur = con.cursor()
-        cur.execute("SELECT id FROM users1 WHERE username=%s", (username,))
-        user = cur.fetchone()
-
-        if not user:
-            return Response({"error": "User not found"})
-
-        cur.execute("""
-            INSERT INTO items (user_id, item_name, description)
-            VALUES (%s,%s,%s)
-        """, (user["id"], item_name, description))
-        con.commit()
-
-    return Response({"success": "Item added successfully"})
-
-
-# ================= USER – VIEW ITEMS =================
+# ================= ADMIN: GET ALL USERS =================
 @api_view(["GET"])
-def view_items_api(request):
-    username = request.GET.get("username")
-
-    con = get_db_connection()
-    with con:
-        cur = con.cursor()
-
-        # show only other users' items
-        cur.execute("""
-            SELECT items.id, item_name, description, username
-            FROM items
-            JOIN users1 ON items.user_id = users1.id
-            WHERE items.status='active'
-            AND users1.username != %s
-        """, (username,))
-
-        items = cur.fetchall()
-
-    return Response({"items": items})
-
-
-
-# ================= ADMIN – REMOVE ITEM =================
-@api_view(["POST"])
-def remove_item_api(request):
-    item_id = request.data.get("item_id")  # ✅ FIX
-
-    if not item_id:
-        return Response({"error": "Item ID required"})
-
-    con = get_db_connection()
-    with con:
-        cur = con.cursor()
-        cur.execute(
-            "UPDATE items SET status='removed' WHERE id=%s",
-            (item_id,)
-        )
-        con.commit()
-
-    return Response({"success": "Item removed"})
+def admin_users_api(request):
+    try:
+        users = User.objects.all()
+        users_data = []
+        for user in users:
+            try:
+                profile = UserProfile.objects.get(user=user)
+                is_approved = profile.is_approved
+            except:
+                is_approved = user.is_staff
+            
+            users_data.append({
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "is_approved": is_approved
+            })
+        return Response({"users": users_data})
+    except Exception as e:
+        return Response({"error": str(e)})
 
 
-
+# ================= ITEM MANAGEMENT =================
 @api_view(["GET"])
 def user_my_items_api(request):
-    username = request.GET.get("username")
-
+    username = request.query_params.get("username")
     if not username:
         return Response({"error": "Username required"})
+    try:
+        user = User.objects.get(username=username)
+        items = Item.objects.filter(owner=user)
+        items_data = []
+        for item in items:
+            items_data.append({
+                "id": item.id,
+                "item_name": item.name,
+                "name": item.name,
+                "description": item.description,
+                "status": "active",
+                "created_at": item.created_at
+            })
+        return Response({"items": items_data})
+    except Exception as e:
+        return Response({"error": str(e)})
 
-    con = get_db_connection()
-    with con:
-        cur = con.cursor()
-        cur.execute("""
-            SELECT items.id, item_name, description, status
-            FROM items
-            JOIN users1 ON items.user_id = users1.id
-            WHERE users1.username=%s
-        """, (username,))
-        items = cur.fetchall()
 
-    return Response({"items": items})
+@api_view(["POST"])
+def remove_item_api(request):
+    item_id = request.data.get("item_id")
+    if not item_id:
+        return Response({"error": "Item ID required"})
+    try:
+        item = Item.objects.get(id=item_id)
+        item.delete()
+        return Response({"success": "Item removed"})
+    except Exception as e:
+        return Response({"error": str(e)})
 
+
+# ================= EXCHANGE REQUESTS =================
 @api_view(["POST"])
 def request_item_api(request):
     username = request.data.get("username")
     item_id = request.data.get("item_id")
-
+    
     if not username or not item_id:
         return Response({"error": "Invalid request"})
-
-    con = get_db_connection()
-    with con:
-        cur = con.cursor()
-
-        # requester
-        cur.execute("SELECT id FROM users1 WHERE username=%s", (username,))
-        requester = cur.fetchone()
-
-        # item owner
-        cur.execute("SELECT user_id FROM items WHERE id=%s", (item_id,))
-        item = cur.fetchone()
-
-        if not requester or not item:
-            return Response({"error": "Invalid request"})
-
-        # ✅ PREVENT MULTIPLE REQUESTS
-        cur.execute("""
-            SELECT id FROM item_requests
-            WHERE item_id=%s AND requester_id=%s
-        """, (item_id, requester["id"]))
-
-        if cur.fetchone():
+    
+    try:
+        requester = User.objects.get(username=username)
+        item = Item.objects.get(id=item_id)
+        
+        # Check if already requested
+        if ExchangeRequest.objects.filter(item=item, requester=requester).exists():
             return Response({"error": "Already requested"})
-
-        # insert request
-        cur.execute("""
-            INSERT INTO item_requests (item_id, requester_id, owner_id)
-            VALUES (%s,%s,%s)
-        """, (item_id, requester["id"], item["user_id"]))
-        con.commit()
-
-    return Response({"success": "Item request sent"})
-
+        
+        ExchangeRequest.objects.create(item=item, requester=requester, status='pending')
+        return Response({"success": "Item request sent"})
+    except Exception as e:
+        return Response({"error": str(e)})
 
 
 @api_view(["GET"])
 def view_item_requests_api(request):
-    username = request.GET.get("username")
+    username = request.query_params.get("username")
+    try:
+        owner = User.objects.get(username=username)
+        requests = ExchangeRequest.objects.filter(item__owner=owner)
+        requests_data = []
+        for req in requests:
+            requests_data.append({
+                "id": req.id,
+                "item_name": req.item.name,
+                "requester": req.requester.username,
+                "status": req.status
+            })
+        return Response({"requests": requests_data})
+    except Exception as e:
+        return Response({"error": str(e)})
 
-    con = get_db_connection()
-    with con:
-        cur = con.cursor()
-
-        cur.execute("SELECT id FROM users1 WHERE username=%s", (username,))
-        owner = cur.fetchone()
-
-        cur.execute("""
-            SELECT r.id, i.item_name, u.username AS requester, r.status
-            FROM item_requests r
-            JOIN items i ON r.item_id = i.id
-            JOIN users1 u ON r.requester_id = u.id
-            WHERE r.owner_id = %s
-        """, (owner["id"],))
-
-        requests = cur.fetchall()
-
-    return Response({"requests": requests})
 
 @api_view(["POST"])
 def update_item_request_api(request):
     request_id = request.data.get("request_id")
     status = request.data.get("status")  # approved / rejected
-
-    con = get_db_connection()
-    with con:
-        cur = con.cursor()
-        cur.execute("""
-            UPDATE item_requests SET status=%s WHERE id=%s
-        """, (status, request_id))
-        con.commit()
-
-    return Response({"success": f"Request {status}"})
+    
+    try:
+        exchange_req = ExchangeRequest.objects.get(id=request_id)
+        exchange_req.status = status
+        exchange_req.save()
+        return Response({"success": f"Request {status}"})
+    except Exception as e:
+        return Response({"error": str(e)})
 
 
 @api_view(["GET"])
 def admin_items_api(request):
-    con = get_db_connection()
-    with con:
-        cur = con.cursor(pymysql.cursors.DictCursor)
-        cur.execute("""
-            SELECT items.id,
-                   items.item_name,
-                   items.description,
-                   items.status,
-                   users1.username
-            FROM items
-            JOIN users1 ON items.user_id = users1.id
-        """)
-        items = cur.fetchall()
+    try:
+        items = Item.objects.all()
+        items_data = []
+        for item in items:
+            items_data.append({
+                "id": item.id,
+                "item_name": item.name,
+                "description": item.description,
+                "username": item.owner.username,
+                "created_at": item.created_at
+            })
+        return Response({"items": items_data})
+    except Exception as e:
+        return Response({"error": str(e)})
 
-    return Response({"items": items})
 
 @api_view(["GET"])
 def user_requested_items_api(request):
-    username = request.GET.get("username")
-
-    con = get_db_connection()
-    with con:
-        cur = con.cursor()
-
-        # requester id
-        cur.execute("SELECT id FROM users1 WHERE username=%s", (username,))
-        requester = cur.fetchone()
-
-        if not requester:
-            return Response({"items": []})
-
-        cur.execute("""
-            SELECT 
-                i.id AS item_id,
-                i.item_name,
-                r.status,
-                u.username AS owner,
-                CASE WHEN r.status='approved' THEN u.mobile ELSE NULL END AS owner_mobile,
-                CASE WHEN r.status='approved' THEN u.address ELSE NULL END AS owner_address
-            FROM item_requests r
-            JOIN items i ON r.item_id = i.id
-            JOIN users1 u ON r.owner_id = u.id
-            WHERE r.requester_id = %s
-        """, (requester["id"],))
-
-        items = cur.fetchall()
-
-    return Response({"items": items})
+    username = request.query_params.get("username")
+    try:
+        requester = User.objects.get(username=username)
+        requests = ExchangeRequest.objects.filter(requester=requester)
+        items_data = []
+        for req in requests:
+            items_data.append({
+                "item_id": req.item.id,
+                "item_name": req.item.name,
+                "status": req.status,
+                "owner": req.item.owner.username
+            })
+        return Response({"items": items_data})
+    except Exception as e:
+        return Response({"error": str(e)})
