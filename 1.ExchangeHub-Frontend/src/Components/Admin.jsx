@@ -149,18 +149,23 @@ const Admin = () => {
                       <tr key={i}>
                         <td>{u.username}</td>
                         <td>{u.email}</td>
-                        <td>{u.mobile}</td>
-                        <td>{u.approved === 1 ? "Approved" : "Pending"}</td>
+                        <td>N/A</td>
                         <td>
-                          {u.approved === 0 ? (
+                          <span className={`badge ${u.is_approved ? 'badge-success' : 'badge-pending'}`}>
+                            {u.is_approved ? '✓ Approved' : '⏳ Pending'}
+                          </span>
+                        </td>
+                        <td>
+                          {!u.is_approved ? (
                             <button
                               className="adminPage-approveBtn"
                               onClick={() => approveUser(u.username)}
+                              title="Click to approve this user"
                             >
                               Approve
                             </button>
                           ) : (
-                            "Approved"
+                            <span className="badge badge-success">Verified</span>
                           )}
                         </td>
                       </tr>
@@ -192,18 +197,14 @@ const Admin = () => {
                         <td>{item.item_name}</td>
                         <td>{item.description}</td>
                         <td>{item.username}</td>
-                        <td>{item.status}</td>
+                        <td>Active</td>
                         <td>
-                          {item.status === "active" ? (
-                            <button
-                              className="adminPage-approveBtn"
-                              onClick={() => removeItem(item.id)}
-                            >
-                              Remove
-                            </button>
-                          ) : (
-                            "Removed"
-                          )}
+                          <button
+                            className="adminPage-approveBtn"
+                            onClick={() => removeItem(item.id)}
+                          >
+                            Remove
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -217,7 +218,7 @@ const Admin = () => {
       </main>
 
       <footer>
-        <h4>© 2025 All Rights Reserved SAK Informatics</h4>
+        <h4>2025@ ALL RIGHTS RESERVED TO BATCH-10_CREH</h4>
       </footer>
     </>
   );

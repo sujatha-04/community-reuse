@@ -293,14 +293,20 @@ const hasRequested = (itemId) => {
                       <tr key={i}>
                         <td>{r.item_name}</td>
                         <td>{r.requester}</td>
-                        <td>{r.status}</td>
+                        <td>
+                          <span className={`badge badge-${r.status === 'approved' ? 'success' : r.status === 'pending' ? 'pending' : 'rejected'}`}>
+                            {r.status === 'approved' && '✓ Approved'}
+                            {r.status === 'pending' && '⏳ Pending'}
+                            {r.status === 'rejected' && '✗ Rejected'}
+                          </span>
+                        </td>
                         <td>
                           {r.status === "pending" && (
                             <>
-                              <button onClick={() => updateRequest(r.id, "approved")}>
+                              <button className="adminPage-approveBtn" onClick={() => updateRequest(r.id, "approved")}>
                                 Approve
                               </button>
-                              <button onClick={() => updateRequest(r.id, "rejected")}>
+                              <button className="adminPage-deleteBtn" onClick={() => updateRequest(r.id, "rejected")} style={{marginLeft: '5px'}}>
                                 Reject
                               </button>
                             </>
@@ -356,7 +362,7 @@ const hasRequested = (itemId) => {
       </main>
 
       <footer>
-        <h4>&copy; 2025 All Rights Reserved SAK Informatics</h4>
+        <h4>2025@ ALL RIGHTS RESERVED TO BATCH-10_CREH</h4>
       </footer>
     </>
   );

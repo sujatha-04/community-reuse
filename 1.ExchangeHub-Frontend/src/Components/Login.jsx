@@ -99,7 +99,7 @@ const Login = () => {
       </main>
 
       <footer>
-        <h4>&copy; 2025 All Rights Reserved SAK Informatics</h4>
+        <h4>2025@ ALL RIGHTS RESERVED TO BATCH-10_CREH</h4>
       </footer>
     </>
   );
