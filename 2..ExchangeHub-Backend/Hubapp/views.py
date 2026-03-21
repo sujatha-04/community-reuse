@@ -49,13 +49,17 @@ def login_api(request):
     username = request.data.get("username")
     password = request.data.get("password")
 
-    print(f"Login attempt: {username}")
+    print(f"Login attempt: username='{username}' | password='{password}'")
+    print(f"Request data: {request.data}")
 
     # -------- AUTHENTICATE USER --------
     user = authenticate(username=username, password=password)
 
     if user is None:
         print(f"Authentication failed for {username}")
+        # Check if user exists
+        user_exists = User.objects.filter(username=username).exists()
+        print(f"User exists in DB: {user_exists}")
         return Response({"error": "Invalid username or password"})
 
     print(f"Authentication successful for {username}, is_staff: {user.is_staff}")
