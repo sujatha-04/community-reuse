@@ -16,11 +16,15 @@ const Login = () => {
     e.preventDefault();
 
     try {
-
+      // Trim whitespace from username and password
+      const trimmedData = {
+        username: data.username.trim(),
+        password: data.password.trim()
+      };
 
       const res = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/login/`,
-        data
+        trimmedData
       );
 
       if (res.data.error?.includes("not approved")) {
